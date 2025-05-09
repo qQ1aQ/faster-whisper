@@ -10,12 +10,12 @@ model_size = "tiny"
 model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
 
-@app.route('/transcribe', methods=['POST'])
+@app.route("/transcribe", methods=["POST"])
 def transcribe_audio():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No audio file provided'}), 400
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
 
-    audio_file = request.files['audio']
+    audio_file = request.files["audio"]
 
     # Save the audio file to a temporary location
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
@@ -27,22 +27,23 @@ def transcribe_audio():
         segments, info = model.transcribe(temp_audio_path, word_timestamps=True)
         transcription = []
         for segment in segments:
-            transcription.append({
-                'start': segment.start,
-                'end': segment.end,
-                'text': segment.text
-            })
+            transcription.append(
+                {
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text,
+                }
+            )
 
-        # Fix: Split the long line for E501
         response_data = {
-            'language': info.language,
-            'language_probability': info.language_probability,
-            'segments': transcription
+            "language": info.language,
+            "language_probability": info.language_probability,
+            "segments": transcription,
         }
         return jsonify(response_data)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
     finally:
         # Clean up the temporary audio file
@@ -50,6 +51,6 @@ def transcribe_audio():
             os.remove(temp_audio_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run the Flask app on port 5000
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host="0.0.0.0", port=5000)
