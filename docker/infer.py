@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
-from faster_whisper import WhisperModel
-import tempfile
 import os
+import tempfile
+
+from flask import Flask, jsonify, request
+from faster_whisper import WhisperModel
 
 app = Flask(__name__)
 
