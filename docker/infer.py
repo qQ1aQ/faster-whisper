@@ -2,11 +2,13 @@ import os
 import tempfile
 
 from flask import Flask, jsonify, request
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS # New third-party import
 from faster_whisper import WhisperModel
+
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes and origins
+
 
 # Configuration for model
 model_size = "tiny"  # You can change this to "base", "small", "medium", "large-v2", "large-v3" etc.
@@ -40,35 +42,42 @@ def transcribe_audio():
     # Save the uploaded file to a temporary file
     # faster-whisper can take a file path
     try:
-        temp_dir = tempfile.mkdtemp()
-        temp_audio_path = os.path.join(temp_dir, audio_file.filename or "audio_upload")
-        audio_file.save(temp_audio_path)
-        print(f"Audio file saved to temporary path: {temp_audio_path}")
+        # Ensure the temporary directory is specific and cleaned up
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a more robust way to name the temp file, handling empty filenames better
+            filename = audio_file.filename if audio_file.filename else "audio_upload"
+            temp_audio_path = os.path.join(temp_dir, filename)
+            audio_file.save(temp_audio_path)
+            print(f"Audio file saved to temporary path: {temp_audio_path}")
 
-        # Perform transcription
-        segments, info = model.transcribe(temp_audio_path, word_timestamps=True)
+            # Perform transcription
+            # Ensure model is not None again, just in case
+            if model is None:
+                print("Model became None before transcription") # Should not happen if initial check works
+                return jsonify({"error": "Model not available for transcription"}), 500
 
-        print(
-            "Detected language '%s' with probability %f"
-            % (info.language, info.language_probability)
-        )
+            segments, info = model.transcribe(temp_audio_path, word_timestamps=True)
 
-        transcription_text = []
-        for segment in segments:
-            transcription_text.append(
-                "[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text)
+            print(
+                "Detected language '%s' with probability %f"
+                % (info.language, info.language_probability)
             )
-            # To get word timestamps:
-            # for word in segment.words:
-            #     print("[%.2fs -> %.2fs] %s" % (word.start, word.end, word.word))
 
-        full_transcription = "\n".join(transcription_text)
-        print(f"Transcription: {full_transcription}")
+            transcription_text_parts = []
+            for segment in segments:
+                transcription_text_parts.append(
+                    "[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text)
+                )
+                # Example for word timestamps (can be added to response if needed)
+                # for word in segment.words:
+                #     print("[%.2fs -> %.2fs] %s" % (word.start, word.end, word.word))
 
-        # Clean up the temporary file and directory
-        os.remove(temp_audio_path)
-        os.rmdir(temp_dir)
-        print("Temporary file and directory removed.")
+            full_transcription = "\n".join(transcription_text_parts)
+            print(f"Transcription: {full_transcription}")
+
+            # No need to manually remove temp_audio_path or temp_dir,
+            # tempfile.TemporaryDirectory() handles cleanup on exit of `with` block.
+            print("Temporary file and directory will be removed.")
 
         return jsonify(
             {
@@ -79,12 +88,10 @@ def transcribe_audio():
         )
 
     except Exception as e:
-        print(f"Error during transcription: {e}")
-        # Clean up if an error occurs after file creation
-        if "temp_audio_path" in locals() and os.path.exists(temp_audio_path):
-            os.remove(temp_audio_path)
-        if "temp_dir" in locals() and os.path.exists(temp_dir):
-            os.rmdir(temp_dir)
+        # Log the full exception for debugging
+        import traceback
+        print(f"Error during transcription: {e}\n{traceback.format_exc()}")
+        # No manual cleanup of temp_dir needed here if using `with` statement above
         return jsonify({"error": str(e)}), 500
 
 
@@ -95,5 +102,8 @@ def health_check():
 
 if __name__ == "__main__":
     # For development, Flask's dev server is fine.
-    # For production, use a WSGI server like Gunicorn or uWSGI.
+    # Debug mode should ideally be False for any kind of deployment or testing with gunicorn
+    # Gunicorn will manage the workers and address binding.
+    # When running with `gunicorn infer:app`, this __main__ block is not executed.
+    # If you run `python infer.py` directly, this dev server starts.
     app.run(host="0.0.0.0", port=5000, debug=False)
