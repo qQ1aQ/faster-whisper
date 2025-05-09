@@ -9,6 +9,7 @@ app = Flask(__name__)
 model_size = "tiny"
 model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
+
 @app.route('/transcribe', methods=['POST'])
 def transcribe_audio():
     if 'audio' not in request.files:
@@ -32,7 +33,13 @@ def transcribe_audio():
                 'text': segment.text
             })
 
-        return jsonify({'language': info.language, 'language_probability': info.language_probability, 'segments': transcription})
+        # Fix: Split the long line for E501
+        response_data = {
+            'language': info.language,
+            'language_probability': info.language_probability,
+            'segments': transcription
+        }
+        return jsonify(response_data)
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -41,6 +48,7 @@ def transcribe_audio():
         # Clean up the temporary audio file
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
+
 
 if __name__ == '__main__':
     # Run the Flask app on port 5000
