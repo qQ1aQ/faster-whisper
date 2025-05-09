@@ -5,6 +5,7 @@ from flask import Flask, jsonify, request
 
 from faster_whisper import WhisperModel
 
+
 app = Flask(__name__)
 
 # Load the Whisper model once when the application starts
@@ -56,4 +57,3 @@ def transcribe_audio():
 if __name__ == "__main__":
     # Run the Flask app on port 5000
     app.run(host="0.0.0.0", port=5000)
-
